@@ -17,13 +17,10 @@ class Product extends Model
         'is_active',
     ];
 
-    /**
-     * Relación: Un producto puede estar en muchas órdenes.
-     */
     public function orders()
     {
         return $this->belongsToMany(Order::class)
-                    ->withPivot('quantity', 'unit_price') // ¡Importante!
+                    ->withPivot('quantity', 'unit_price')
                     ->withTimestamps();
     }
 }

@@ -13,13 +13,9 @@ Route::get('/', function () {
 });
 
 Auth::routes(['register' => false]);
-Route::get('/rastreo', function () {
-    return view('rastreo');
-})->name('rastreo');
 
-
-Route::get('/rastreo', [TrackingController::class, 'index'])->name('rastreo');
-Route::post('/rastreo/buscar', [TrackingController::class, 'search'])->name('rastreo.buscar');
+Route::get('/tracking', [TrackingController::class, 'index'])->name('tracking');
+Route::post('/tracking/search', [TrackingController::class, 'search'])->name('tracking.search');
 
 Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');

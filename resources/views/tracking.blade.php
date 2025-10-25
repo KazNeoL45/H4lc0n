@@ -2,44 +2,41 @@
 
 @section('content')
 <div class="container">
-    <h1 class="mb-4">Rastreo de Paquete</h1>
+    <h1 class="mb-4">Package Tracking</h1>
 
-    {{-- Formulario de búsqueda --}}
-    <form method="POST" action="{{ route('rastreo.buscar') }}">
+    <form method="POST" action="{{ route('tracking.search') }}">
         @csrf
         <div class="row">
             <div class="col-md-6 mb-3">
-                <label for="customer_number" class="form-label">Número de cliente</label>
+                <label for="customer_number" class="form-label">Customer Number</label>
                 <input type="text" name="customer_number" id="customer_number" class="form-control"
-                       placeholder="Ej. CUST-00123" required>
+                       placeholder="Ex. CUST-00123" required>
             </div>
             <div class="col-md-6 mb-3">
-                <label for="invoice_number" class="form-label">Número de factura</label>
+                <label for="invoice_number" class="form-label">Invoice Number</label>
                 <input type="text" name="invoice_number" id="invoice_number" class="form-control"
-                       placeholder="Ej. FAC-00123" required>
+                       placeholder="Ex. FAC-00123" required>
             </div>
         </div>
-        <button type="submit" class="btn btn-primary">Buscar</button>
+        <button type="submit" class="btn btn-primary">Search</button>
     </form>
 
-    {{-- Mensajes --}}
     @if(session('error'))
         <div class="alert alert-danger mt-4">
             {{ session('error') }}
         </div>
     @endif
 
-    {{-- Resultado del rastreo --}}
     @isset($order)
         <div class="card mt-5">
             <div class="card-body">
-                <h5 class="card-title">Detalles del Pedido</h5>
-                <p><strong>Cliente:</strong> {{ $customer->name }}</p>
-                <p><strong>Número de cliente:</strong> {{ $customer->customer_number }}</p>
-                <p><strong>Factura:</strong> {{ $order->invoice_number }}</p>
-                <p><strong>Dirección de entrega:</strong> {{ $order->delivery_address }}</p>
-                <p><strong>Fecha de pedido:</strong> {{ $order->order_date->format('d/m/Y H:i') }}</p>
-                <p><strong>Estatus:</strong>
+                <h5 class="card-title">Order Details</h5>
+                <p><strong>Customer:</strong> {{ $customer->name }}</p>
+                <p><strong>Customer Number:</strong> {{ $customer->customer_number }}</p>
+                <p><strong>Invoice:</strong> {{ $order->invoice_number }}</p>
+                <p><strong>Delivery Address:</strong> {{ $order->delivery_address }}</p>
+                <p><strong>Order Date:</strong> {{ $order->order_date->format('Y-m-d H:i') }}</p>
+                <p><strong>Status:</strong>
                     @switch($order->status)
                         @case('Ordered')
                             <span class="badge bg-secondary">Ordered</span>
@@ -56,15 +53,14 @@
                     @endswitch
                 </p>
 
-                {{-- --- SECCIÓN DE PRODUCTOS (MODIFICADA) --- --}}
                 @if($order->products->count() > 0)
-                <h5 class="mt-4">Productos en esta orden</h5>
+                <h5 class="mt-4">Products in this Order</h5>
                 <table class="table table-striped">
                     <thead>
                         <tr>
-                            <th>Producto</th>
-                            <th>Cantidad</th>
-                            <th>Precio Unitario</th>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
                             <th>Subtotal</th>
                         </tr>
                     </thead>
@@ -80,56 +76,49 @@
                     </tbody>
                     <tfoot>
                         <tr class="fw-bold">
-                            <td colspan="3" class="text-end">Total de la Orden:</td>
+                            <td colspan="3" class="text-end">Order Total:</td>
                             <td>${{ number_format($order->total_amount, 2) }}</td>
                         </tr>
                     </tfoot>
                 </table>
                 @endif
-                {{-- --- FIN SECCIÓN DE PRODUCTOS --- --}}
 
-
-                {{-- --- SECCIÓN DE FOTOS (MODIFICADA) --- --}}
                 @if($order->photos->count() > 0)
                     <div class="mt-4">
-                        <h5>Evidencia Fotográfica</h5>
+                        <h5>Photo Evidence</h5>
                         <div class="row">
                             @php
-                                // Buscamos ambas fotos
                                 $loadedPhoto = $order->photos->firstWhere('photo_type', 'loaded');
                                 $deliveredPhoto = $order->photos->firstWhere('photo_type', 'delivered');
                             @endphp
-                            
-                            {{-- Mostramos la foto de Carga si el estatus es 'In route' o 'Delivered' --}}
+
                             @if($loadedPhoto && in_array($order->status, ['In route', 'Delivered']))
                                 <div class="col-md-6 mb-3">
-                                    <h6>Foto de Carga (En ruta):</h6>
-                                    <img src="{{ asset('storage/' . $loadedPhoto->photo_path) }}" 
-                                         alt="Foto de carga" class="img-fluid rounded shadow">
+                                    <h6>Loaded Photo (In route):</h6>
+                                    <img src="{{ asset('storage/' . $loadedPhoto->photo_path) }}"
+                                         alt="Loaded photo" class="img-fluid rounded shadow">
                                 </div>
                             @endif
 
-                            {{-- Mostramos la foto de Entrega si el estatus es 'Delivered' --}}
                             @if($deliveredPhoto && $order->status === 'Delivered')
                                 <div class="col-md-6 mb-3">
-                                    <h6>Evidencia de entrega:</h6>
-                                    <img src="{{ asset('storage/' . $deliveredPhoto->photo_path) }}" 
-                                         alt="Foto de entrega" class="img-fluid rounded shadow">
+                                    <h6>Delivery Evidence:</h6>
+                                    <img src="{{ asset('storage/' . $deliveredPhoto->photo_path) }}"
+                                         alt="Delivery photo" class="img-fluid rounded shadow">
                                 </div>
                             @endif
                         </div>
                     </div>
                 @else
-                    {{-- Mensaje si está entregado pero no hay fotos --}}
                     @if($order->status === 'Delivered')
-                        <p class="text-muted mt-3">No hay evidencia fotográfica disponible.</p>
+                        <p class="text-muted mt-3">No photo evidence available.</p>
                     @endif
                 @endif
-                {{-- --- FIN SECCIÓN DE FOTOS --- --}}
 
             </div>
         </div>
     @endisset
 </div>
 @endsection
+
 

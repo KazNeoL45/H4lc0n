@@ -12,7 +12,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ route('admin.dashboard') }}">Halcon Admin</a>
+            <a class="navbar-brand" href="{{ route('admin.dashboard') }}">Halcon Management</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -36,6 +36,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ route('admin.customers.index') }}">
                             <i class="bi bi-people"></i> Customers
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('admin.products.index') }}">
+                            <i class="bi bi-box"></i> Products
                         </a>
                     </li>
                     @if(auth()->user()->role === 'Admin')
