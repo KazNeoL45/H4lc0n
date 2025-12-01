@@ -331,7 +331,8 @@ class OrderApiController extends Controller
             ], 422);
         }
 
-        $query = Order::with(['customer'])
+        // Eager load photos to include images in the response
+        $query = Order::with(['customer', 'photos'])
             ->where('is_deleted', false);
 
         if ($request->filled('status')) {
@@ -354,15 +355,19 @@ class OrderApiController extends Controller
             $query->whereDate('order_date', '<=', $request->date_to);
         }
 
-
         $perPage = $request->input('per_page', 15);
-        $perPage = min($perPage, 100); 
+        $perPage = min($perPage, 100);
 
         $orders = $query->latest('order_date')->paginate($perPage);
 
         return response()->json([
             'success' => true,
             'data' => $orders->map(function ($order) {
+                // prefer the delivered photo
+                $delivered = $order->photos->firstWhere('photo_type', 'delivered');
+
+                $deliveredData = $delivered ? $this->photoToBase64($delivered->photo_path) : ['base64' => null, 'mime' => null];
+
                 return [
                     'order_id' => $order->id,
                     'invoice_number' => $order->invoice_number,
@@ -374,6 +379,14 @@ class OrderApiController extends Controller
                         'customer_number' => $order->customer->customer_number,
                         'name' => $order->customer->name,
                         'company_name' => $order->customer->company_name
+                    ],
+                    'delivered_photo' => [
+                        'id' => $delivered ? $delivered->id : null,
+                        'photo_type' => $delivered ? $delivered->photo_type : null,
+                        'raw_photo_path' => $delivered ? $delivered->photo_path : null,
+                        'photo_base64' => $deliveredData['base64'],
+                        'photo_mime' => $deliveredData['mime'],
+                        'uploaded_at' => $delivered ? $delivered->created_at : null,
                     ],
                     'updated_at' => $order->updated_at
                 ];
@@ -390,47 +403,63 @@ class OrderApiController extends Controller
     }
 
     /**
-     * Try multiple locations/disks and return base64 + mime (or nulls)
+     * Convert a stored route/path/URL to base64 + mime. Tries common disks and filesystem locations.
      */
     private function photoToBase64(?string $photoPath): array
     {
-        $base64 = null;
-        $mime = null;
-
-        if (empty($photoPath)) {
+        $photoPath = trim((string) $photoPath);
+        if ($photoPath === '') {
             return ['base64' => null, 'mime' => null];
         }
 
-        // 1) Try default Storage
-        if (Storage::exists($photoPath)) {
-            $contents = Storage::get($photoPath);
-            $mime = Storage::mimeType($photoPath) ?: 'application/octet-stream';
-        } else {
-            // 2) Try storage/app/<path>
-            $local = storage_path('app/' . ltrim($photoPath, '/'));
-            if (file_exists($local)) {
-                $contents = file_get_contents($local);
-                $mime = mime_content_type($local) ?: 'application/octet-stream';
-            } else {
-                // 3) Try public path (e.g. public/storage/...)
-                $public = public_path(ltrim($photoPath, '/'));
-                if (file_exists($public)) {
-                    $contents = file_get_contents($public);
-                    $mime = mime_content_type($public) ?: 'application/octet-stream';
-                } else {
-                    // 4) Try the public disk
-                    if (Storage::disk('public')->exists($photoPath)) {
-                        $contents = Storage::disk('public')->get($photoPath);
-                        $mime = Storage::disk('public')->mimeType($photoPath) ?: 'application/octet-stream';
-                    }
+        // If it's a full URL, try fetching it
+        if (preg_match('/^https?:\\/\\//i', $photoPath)) {
+            $contents = @file_get_contents($photoPath);
+            if ($contents !== false) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $mime = finfo_buffer($finfo, $contents) ?: 'application/octet-stream';
+                finfo_close($finfo);
+                return ['base64' => 'data:' . $mime . ';base64,' . base64_encode($contents), 'mime' => $mime];
+            }
+            return ['base64' => null, 'mime' => null];
+        }
+
+        // normalize path (remove leading slash)
+        $path = ltrim($photoPath, '/');
+
+        // Try Storage disks (public then default)
+        $disks = array_filter([ 'public', config('filesystems.default') ]);
+        foreach (array_unique($disks) as $disk) {
+            try {
+                if (Storage::disk($disk)->exists($path)) {
+                    $contents = Storage::disk($disk)->get($path);
+                    $mime = Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
+                    return ['base64' => 'data:' . $mime . ';base64,' . base64_encode($contents), 'mime' => $mime];
+                }
+            } catch (\Throwable $e) {
+                // ignore and continue to next option
+            }
+        }
+
+        // Try common local filesystem locations using the stored route
+        $candidates = [
+            public_path($path),                    // e.g. public/orders/...
+            public_path('storage/' . $path),       // public/storage/...
+            storage_path('app/' . $path),          // storage/app/...
+            storage_path('app/public/' . $path),   // storage/app/public/...
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (file_exists($candidate) && is_file($candidate) && is_readable($candidate)) {
+                $contents = @file_get_contents($candidate);
+                if ($contents !== false) {
+                    $mime = @mime_content_type($candidate) ?: 'application/octet-stream';
+                    return ['base64' => 'data:' . $mime . ';base64,' . base64_encode($contents), 'mime' => $mime];
                 }
             }
         }
 
-        if (isset($contents) && $contents !== false) {
-            $base64 = 'data:' . $mime . ';base64,' . base64_encode($contents);
-        }
-
-        return ['base64' => $base64, 'mime' => $mime];
+        // Nothing found
+        return ['base64' => null, 'mime' => null];
     }
 }

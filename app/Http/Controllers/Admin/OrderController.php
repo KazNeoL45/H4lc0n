@@ -142,9 +142,9 @@ class OrderController extends Controller
             'invoice_number' => [
                 'required',
                 'string',
-                Rule::unique('orders')->ignore($order->id), // Ignora esta misma orden
+                Rule::unique('orders')->ignore($order->id),
             ],
-            'status' => ['required', Rule::in(['Ordered', 'In process', 'In route', 'Delivered'])],
+            'status' => 'required|string',
             'delivery_address' => 'required|string',
             'order_date' => 'required|date',
             'notes' => 'nullable|string',
@@ -167,7 +167,7 @@ class OrderController extends Controller
                     Storage::disk('public')->delete($oldLoaded->photo_path);
                     $oldLoaded->delete();
                 }
-                
+
                 $path = $request->file('loaded_photo')->store('order_photos', 'public');
                 $order->photos()->create([
                     'photo_path' => $path,
@@ -182,19 +182,22 @@ class OrderController extends Controller
                     Storage::disk('public')->delete($oldDelivered->photo_path);
                     $oldDelivered->delete();
                 }
-                
+
                 $path = $request->file('delivered_photo')->store('order_photos', 'public');
                 $order->photos()->create([
                     'photo_path' => $path,
                     'photo_type' => 'delivered',
                     'uploaded_by' => Auth::id(),
                 ]);
+
+                // Force order status to Delivered when a delivered photo is uploaded
+                $validatedData['status'] = 'Delivered';
             }
 
             $orderData = $validatedData;
             unset($orderData['loaded_photo'], $orderData['delivered_photo']);
             $order->update($orderData);
-            
+
             DB::commit();
 
             return redirect()->route('admin.orders.index')->with('success', 'Orden actualizada exitosamente.');
